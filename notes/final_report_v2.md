@@ -13,56 +13,64 @@ This report provides an in-depth look at the data preparation stage within the l
 
 ```mermaid
 graph TD
-    A[Start Data Preparation] --> B{Parse CLI Arguments & Files};
-    B -- common_params_parse --> C[Initial `common_params` set <br/> (prompt, system_prompt, chat_template, antiprompt, etc.)];
+    A["Start Data Preparation"] --> B{"Parse CLI Arguments & Files"};
+    B -- common_params_parse --> C["Initial `common_params` set 
+(prompt, system_prompt, chat_template, antiprompt, etc.)"];
     
-    C --> D{Mode Selection};
-    D -- Interactive Mode <br/> (`params.interactive_first` or no initial prompt) --> E[Interactive Input Loop];
-    D -- Pre-set Prompt Mode --> F[Process Pre-set Prompt];
+    C --> D{"Mode Selection"};
+    D -- "Interactive Mode 
+(`params.interactive_first` or no initial prompt)" --> E["Interactive Input Loop"];
+    D -- "Pre-set Prompt Mode" --> F["Process Pre-set Prompt"];
 
     F --> F1["Load `params.prompt` (from CLI -p or file -f)"];
-    F1 --> F2{Conversation & Chat Template? <br/> (`params.conversation_mode && params.enable_chat_template`)};
-    F2 -- Yes --> G[Chat Templating];
+    F1 --> F2{"Conversation & Chat Template? 
+(`params.conversation_mode && params.enable_chat_template`)"};
+    F2 -- Yes --> G["Chat Templating"];
     G --> G1["`common_chat_templates_init(model, params.chat_template)`"];
-    G1 --> G2["Format System Prompt (if `params.system_prompt`) <br/> using `chat_add_and_format` (calls `common_chat_format_single`)"];
-    G2 --> G3["Format Initial User Prompt (if `params.prompt`) <br/> using `chat_add_and_format`"];
+    G1 --> G2["Format System Prompt (if `params.system_prompt`) 
+using `chat_add_and_format` (calls `common_chat_format_single`)"];
+    G2 --> G3["Format Initial User Prompt (if `params.prompt`) 
+using `chat_add_and_format`"];
     G3 --> G4["`common_chat_templates_apply` -> `final_prompt_string`"];
     F2 -- No --> H["`final_prompt_string = params.prompt`"];
     
-    G4 --> I[Tokenize Initial Prompt];
+    G4 --> I["Tokenize Initial Prompt"];
     H --> I;
 
     E --> E1["`console::readline()` -> `buffer`"];
-    E1 --> E2{Conversation & Chat Template?};
+    E1 --> E2{"Conversation & Chat Template?"};
     E2 -- Yes --> E3["`chat_add_and_format('user', buffer)` -> `user_input_string`"];
     E2 -- No --> E4["`user_input_string = buffer`"];
-    E3 --> E5[Handle `params.input_prefix`, `params.input_suffix` <br/> (if chat template disabled for interactive)];
+    E3 --> E5["Handle `params.input_prefix`, `params.input_suffix` 
+(if chat template disabled for interactive)"];
     E4 --> E5;
-    E5 --> J[Tokenize Interactive Input];
+    E5 --> J["Tokenize Interactive Input"];
 
-    I --> K[Set `embd_inp` from Initial Prompt Tokens];
-    J --> K[Append Interactive Tokens to `embd_inp`];
-
+    I --> K["Set `embd_inp` from Initial Prompt Tokens"];
+    J --> K; 
     K --> L["`common_tokenize(ctx, text_to_tokenize, add_special, parse_special)`"];
-    L --> M{Special Token Handling};
+    L --> M{"Special Token Handling"};
     M --> M1["Determine `add_bos` based on vocab & `params.use_jinja`"];
     M1 --> M2["If `embd_inp` is empty & `add_bos`, add BOS token"];
-    M2 --> N[Output: `embd_inp` (tokenized input)];
-    N --> Z[End Data Preparation];
+    M2 --> N["Output: `embd_inp` (tokenized input)"];
+    N --> Z["End Data Preparation"];
 
     subgraph legend [Flowchart Legend]
         direction LR
-        legend_input[Input/Output]
-        legend_process[Process Step]
-        legend_decision{Decision}
-        legend_subroutine[/Sub-routine Call/]
+        legend_input["Input/Output"]
+        legend_process["Process Step"]
+        legend_decision{"Decision"}
+        legend_subroutine["/Sub-routine Call/"]
     end
     classDef input fill:#f9f,stroke:#333,stroke-width:2px;
     classDef process fill:#9cf,stroke:#333,stroke-width:2px;
     classDef decision fill:#f96,stroke:#333,stroke-width:2px;
     classDef subroutine fill:#9f9,stroke:#333,stroke-width:2px;
-    class A,B,C,D,E,E1,F,F1,G,G1,G2,G3,G4,H,I,J,K,L,M,M1,M2,N,Z process;
-    class F2,E2 decision;
+    
+    class A,C,E,E1,F,F1,G,G1,G2,G3,G4,H,I,E3,E4,E5,J,K,L,M1,M2,Z process;
+    class N input; %% N is an output, so class input
+    class B,D,F2,E2,M decision;
+    
     class legend_input input;
     class legend_process process;
     class legend_decision decision;
@@ -349,57 +357,95 @@ This report provides an in-depth look at the Model Loading phase within the llam
 
 ```mermaid
 graph TD
-    A[Start Model Loading: User common_params] --> B["common_model_params_to_llama<br/>(common/common.cpp)"];
-    B --> C["llama_model_params created <br/>(n_gpu_layers, main_gpu, tensor_split, use_mmap, etc.)"];
-    C --> D["llama_model_load_from_file_impl<br/>(src/llama.cpp)"];
+    A["Start Model Loading: User common_params"] --> B["common_model_params_to_llama
+(common/common.cpp)"];
+    B --> C["llama_model_params created 
+(n_gpu_layers, main_gpu, tensor_split, use_mmap, etc.)"];
+    C --> D["llama_model_load_from_file_impl
+(src/llama.cpp)"];
     D --> D1["Initialize llama_model object"];
-    D1 --> D2["Determine `model->devices` (List of ggml_backend_dev_t) <br/><i>User-provided or auto-detected GPUs. <br/>Filtered by main_gpu if split_mode is NONE</i>"];
+    D1 --> D2["Determine `model->devices` (List of ggml_backend_dev_t) 
+<i>User-provided or auto-detected GPUs. 
+Filtered by main_gpu if split_mode is NONE</i>"];
     
     D2 --> E["Call llama_model_load (src/llama.cpp)"];
-    E --> F["llama_model_loader Constructor<br/>(src/llama-model-loader.cpp)"];
-    F --> F1["Parse Main GGUF Metadata<br/>(gguf_init_from_file, no_alloc=true)"];
+    E --> F["llama_model_loader Constructor
+(src/llama-model-loader.cpp)"];
+    F --> F1["Parse Main GGUF Metadata
+(gguf_init_from_file, no_alloc=true)"];
     F1 --> F2["Populate `weights_map` with tensor metadata & offsets from main GGUF"];
-    F2 --> F3{Has Split Files? (n_split > 1)};
-    F3 -- Yes --> F4["Loop: Parse Split GGUF Metadata & <br/>Append to `weights_map`"];
+    F2 --> F3{"Has Split Files? (n_split > 1)"};
+    F3 -- Yes --> F4["Loop: Parse Split GGUF Metadata & 
+Append to `weights_map`"];
     F3 -- No --> F5;
     F4 --> F5["GGUF Metadata & weights_map Ready"];
 
-    F5 --> G["llama_model_loader::init_mappings<br/>(src/llama-model-loader.cpp)"];
-    G --> G1{use_mmap?};
-    G1 -- Yes --> G2["Create `llama_mmap` for each model file.<br/>Optionally `llama_mlock`."];
+    F5 --> G["llama_model_loader::init_mappings
+(src/llama-model-loader.cpp)"];
+    G --> G1{"use_mmap?"};
+    G1 -- Yes --> G2["Create `llama_mmap` for each model file.
+Optionally `llama_mlock`."];
     G1 -- No --> G3;
     G2 --> G3["Mappings Initialized (or skipped)"];
 
-    G3 --> H["llama_model::load_tensors (Conceptual)<br/>(Called by llama_model_load)"];
+    G3 --> H["llama_model::load_tensors (Conceptual)
+(Called by llama_model_load)"];
     H --> H1["Iterate through required model tensors (e.g., blk.0.attn_q.weight)"];
-    H1 --> H2{Offload Tensor to GPU? <br/>(Layer index < n_gpu_layers, tensor name criteria)};
-    H2 -- Yes --> H3["Allocate tensor buffer on target GPU(s)<br/>(ggml_backend_alloc_buffer / ggml_backend_alloc_split_buffer)<br/><i>Considers tensor_split, split_mode, model->devices</i>"];
+    H1 --> H2{"Offload Tensor to GPU? 
+(Layer index < n_gpu_layers, tensor name criteria)"};
+    H2 -- Yes --> H3["Allocate tensor buffer on target GPU(s)
+(ggml_backend_alloc_buffer / ggml_backend_alloc_split_buffer)
+<i>Considers tensor_split, split_mode, model->devices</i>"];
     H2 -- No --> H4["Allocate tensor buffer on CPU"];
     H3 --> H5;
-    H4 --> H5["Tensor `ggml_tensor` created in model.ctx_w <br/>(buffer set, data ptr might be null)"];
+    H4 --> H5["Tensor `ggml_tensor` created in model.ctx_w 
+(buffer set, data ptr might be null)"];
     
-    H5 --> I["llama_model_loader::load_all_data<br/>(src/llama-model-loader.cpp)<br/>(Called by llama_model::load_tensors_data)"];
+    H5 --> I["llama_model_loader::load_all_data
+(src/llama-model-loader.cpp)
+(Called by llama_model::load_tensors_data)"];
     I --> I1["Iterate tensors needing data population"];
-    I1 --> I2{use_mmap?};
-    I2 -- Yes (Mmap Path) --> I3["`cur->data = mapping->addr() + offset`"];
-    I3 --> I4["`ggml_backend_tensor_alloc` (if buffer for mmap) or <br/>`ggml_backend_tensor_set` (if data ptr already set, e.g. direct GPU)"];
-    I2 -- No (Non-Mmap Path) --> I5{Tensor on Host Buffer?};
-    I5 -- Yes --> I6["`file->read_raw(cur->data, ...)` <br/> (Direct read to CPU)"];
-    I5 -- No (Tensor on GPU Buffer) --> I7{Async Upload Possible? <br/>(upload_backend valid)};
-    I7 -- Yes --> I8["Read to Pinned Host Buffer <br/> `ggml_backend_tensor_set_async` <br/> (Async GPU Copy)"];
-    I7 -- No --> I9["Read to Temp Host Buffer <br/> `ggml_backend_tensor_set` <br/> (Sync GPU Copy)"];
-    I4 --> J[Tensor Data Populated];
+    I1 --> I2{"use_mmap?"};
+    I2 -- "Yes (Mmap Path)" --> I3["`cur->data = mapping->addr() + offset`"];
+    I3 --> I4["`ggml_backend_tensor_alloc` (if buffer for mmap) or 
+`ggml_backend_tensor_set` (if data ptr already set, e.g. direct GPU)"];
+    I2 -- "No (Non-Mmap Path)" --> I5{"Tensor on Host Buffer?"};
+    I5 -- Yes --> I6["`file->read_raw(cur->data, ...)` 
+(Direct read to CPU)"];
+    I5 -- "No (Tensor on GPU Buffer)" --> I7{"Async Upload Possible? 
+(upload_backend valid)"};
+    I7 -- Yes --> I8["Read to Pinned Host Buffer 
+`ggml_backend_tensor_set_async` 
+(Async GPU Copy)"];
+    I7 -- No --> I9["Read to Temp Host Buffer 
+`ggml_backend_tensor_set` 
+(Sync GPU Copy)"];
+    I4 --> J["Tensor Data Populated"];
     I6 --> J;
     I8 --> J;
     I9 --> J;
     J --> I1;
-    I1 -- All Tensors Processed --> K[End Model Loading];
+    I1 -- "All Tensors Processed" --> K["End Model Loading"];
 
-    %% Styling
-    style H3 fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
-    style I4 fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
-    style I8 fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
-    style I9 fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
+    subgraph legend [Flowchart Legend]
+        direction LR
+        legend_input["Input/Output"]
+        legend_process["Process Step"]
+        legend_decision{"Decision"}
+    end
+    classDef input fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef process fill:#9cf,stroke:#333,stroke-width:2px;
+    classDef decision fill:#f96,stroke:#333,stroke-width:2px;
+    classDef gpu_interaction fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
+
+    class A,C,K input;
+    class B,D,D1,D2,E,F,F1,F2,F4,F5,G,G2,G3,H,H1,H5,I,I1,I3,I6,J process;
+    class F3,G1,H2,I2,I5,I7 decision;
+    class H3,H4,I4,I8,I9 gpu_interaction; %% Highlighting GPU related allocation/copy
+    
+    class legend_input input;
+    class legend_process process;
+    class legend_decision decision;
 ```
 
 ## Detailed Explanation with Code Snippets
@@ -643,35 +689,66 @@ This report provides an in-depth look at the Inference Execution stage of the ll
 
 ```mermaid
 graph TD
-    A[Start Inference Loop] --> B{Loop while <br/>(n_remain > 0 AND !is_antiprompt) <br/>OR params.interactive};
-    B -- Yes, Continue Generation --> C[Prepare `embd` (current batch of tokens for evaluation)];
+    A["Start Inference Loop"] --> B{"Loop while 
+(n_remain > 0 AND !is_antiprompt) 
+OR params.interactive"};
+    B -- "Yes, Continue Generation" --> C["Prepare `embd` (current batch of tokens for evaluation)"];
     
-    C --> D{KV Cache Management <br/>(if n_past + embd.size >= n_ctx)};
-    D -- Context Shift Enabled <br/> (params.ctx_shift AND ga_n == 1) --> D1["Context Shifting:<br/>`llama_kv_self_seq_rm()`<br/>`llama_kv_self_seq_add()`"];
-    D -- Self-Extend Enabled <br/> (ga_n > 1) --> D2["Self-Extend (Grouped Attention):<br/>`llama_kv_self_seq_add()`<br/>`llama_kv_self_seq_div()`"];
-    D -- No Management Needed / After Management --> E;
+    C --> D{"KV Cache Management 
+(if n_past + embd.size >= n_ctx)"};
+    D -- "Context Shift Enabled 
+(params.ctx_shift AND ga_n == 1)" --> D1["Context Shifting:
+`llama_kv_self_seq_rm()`
+`llama_kv_self_seq_add()`"];
+    D -- "Self-Extend Enabled 
+(ga_n > 1)" --> D2["Self-Extend (Grouped Attention):
+`llama_kv_self_seq_add()`
+`llama_kv_self_seq_div()`"];
+    D -- "No Management Needed / After Management" --> E;
     D1 --> E;
     D2 --> E;
 
-    E["`llama_decode(ctx, batch)`<br/><i>Builds & computes GGML graph on CPU/<b>GPU</b>.<br/>Updates logits in context.</i>"];
+    E["`llama_decode(ctx, batch)`
+<i>Builds & computes GGML graph on CPU/<b>GPU</b>.
+Updates logits in context.</i>"];
     E --> F["`n_past += n_evaluated_tokens`"];
 
-    F --> G{Generating New Tokens? <br/> (embd_inp fully consumed AND !is_interacting)};
-    G -- Yes --> H["`common_sampler_sample(smpl, ctx, -1)` -> `next_token_id`"];
+    F --> G{"Generating New Tokens? 
+(embd_inp fully consumed AND !is_interacting)"};
+    G -- "Yes" --> H["`common_sampler_sample(smpl, ctx, -1)` -> `next_token_id`"];
     H --> I["`common_sampler_accept(smpl, next_token_id, accept_grammar=true)`"];
     I --> J["Add `next_token_id` to `embd` for next eval (if continuing)"];
     J --> K["`n_remain--`"];
     
-    G -- No (Processing Prompt/Input) --> L["For each token in `embd` (from `embd_inp`):<br/>`common_sampler_accept(smpl, token, accept_grammar=false)`"];
+    G -- "No (Processing Prompt/Input)" --> L["For each token in `embd` (from `embd_inp`):
+`common_sampler_accept(smpl, token, accept_grammar=false)`"];
     
     K --> B;
     L --> B;
 
-    B -- No, Stop Generation --> M[Proceed to Post-processing];
-    M --> Z[End Inference Stage];
+    B -- "No, Stop Generation" --> M["Proceed to Post-processing"];
+    M --> Z["End Inference Stage"];
 
-    %% Styling
-    style E fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
+    subgraph legend [Flowchart Legend]
+        direction LR
+        legend_input["Input/Output"]
+        legend_process["Process Step"]
+        legend_decision{"Decision"}
+        legend_gpu_interaction["GPU Interaction"]
+    end
+    classDef input fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef process fill:#9cf,stroke:#333,stroke-width:2px;
+    classDef decision fill:#f96,stroke:#333,stroke-width:2px;
+    classDef gpu_interaction fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
+    
+    class A,C,D1,D2,F,H,I,J,K,L,M,Z process;
+    class B,D,G decision;
+    class E gpu_interaction; %% Node E is llama_decode, involving GPU
+    
+    class legend_input input;
+    class legend_process process;
+    class legend_decision decision;
+    class legend_gpu_interaction gpu_interaction;
 ```
 
 ## Detailed Explanation with Code Snippets
@@ -887,54 +964,71 @@ This report delves into the Post-processing stage of the llama.cpp pipeline. It 
 
 ```mermaid
 graph TD
-    A[New Token(s) available in `embd` (from sampling or input echo)] --> B;
+    A["New Token(s) available in `embd` 
+(from sampling or input echo)"] --> B;
     
-    B["Loop for each `id` in `embd`"];
-    B -- Each token --> C["`token_str = common_token_to_piece(ctx, id, params.special)`"];
+    B["Loop for each `id` in `embd`"] --> C["`token_str = common_token_to_piece(ctx, id, params.special)`"];
     C --> D["Accumulate `token_str` to `output_ss` (full log)"];
-    D --> D1["IF generating new token (not echo):<br/>Accumulate `token_str` to `assistant_ss` (chat mode)"];
+    D --> D1["IF generating new token (not echo):
+Accumulate `token_str` to `assistant_ss` (chat mode)"];
     D1 --> E["Display/Log `token_str` via `LOG(\"%s\", ...)`"];
-    E -- Next token in embd --> B;
-    B -- All tokens in embd processed --> F;
+    E -- "Next token in embd" --> B;
+    B -- "All tokens in embd processed" --> F;
 
-    F{Was `embd` from new token generation (not prompt echo)?};
-    F -- Yes --> G[Antiprompt Check];
+    F{"Was `embd` from new token generation 
+(not prompt echo)?"};
+    F -- "Yes" --> G["Antiprompt Check"];
     G --> G1["`last_output = common_sampler_prev_str()`"];
     G1 --> G2["Compare `last_output` with each `params.antiprompt` string"];
     G2 --> G3["Compare `common_sampler_last()` with single-token antiprompts"];
-    G3 --> G4{Antiprompt Matched?};
-    G4 -- Yes --> H["`is_antiprompt = true`<br/>IF interactive: `is_interacting = true`"];
-    H --> X[To Main Loop Condition Check];
-    G4 -- No --> I[EOG/EOS Check];
+    G3 --> G4{"Antiprompt Matched?"};
+    G4 -- "Yes" --> H["`is_antiprompt = true`
+IF interactive: `is_interacting = true`"];
+    H --> X["To Main Loop Condition Check"];
+    G4 -- "No" --> I["EOG/EOS Check"];
     
-    F -- No (Echoing prompt/input) --> X;
+    F -- "No (Echoing prompt/input)" --> X;
 
     I --> I1["`is_eog = llama_vocab_is_eog(vocab, common_sampler_last(smpl))`"];
-    I1 --> I2{`is_eog` true?};
-    I2 -- Yes --> J{Interactive Mode? (`params.interactive`)};
-    J -- Yes --> K["Set `is_interacting = true`<br/>IF chat: `chat_add_and_format(\"assistant\", assistant_ss.str())`"];
+    I1 --> I2{"`is_eog` true?"};
+    I2 -- "Yes" --> J{"Interactive Mode? (`params.interactive`)"};
+    J -- "Yes" --> K["Set `is_interacting = true`
+IF chat: `chat_add_and_format(\"assistant\", assistant_ss.str())`"];
     K --> X;
-    J -- No --> L["`LOG(\" [end of text]\")` <br/> Break Main Loop"];
-    L --> Y[End Generation Sequence];
-    I2 -- No --> X;
+    J -- "No" --> L["`LOG(\" [end of text]\")` 
+Break Main Loop"];
+    L --> Y["End Generation Sequence"];
+    I2 -- "No" --> X;
 
-    X --> B_LoopCond{More tokens to generate OR <br/> Interactive mode waiting?};
-    B_LoopCond -- Yes, Continue --> A_InferenceLoop[Back to Start of Inference Loop];
-    B_LoopCond -- No, Stop --> Y;
+    X --> B_LoopCond{"More tokens to generate OR 
+Interactive mode waiting?"};
+    B_LoopCond -- "Yes, Continue" --> A_InferenceLoop["Back to Start of Inference Loop"];
+    B_LoopCond -- "No, Stop" --> Y;
     
-    Y --> Z{`params.prompt_cache_all` AND <br/> `!path_session.empty()` AND <br/> `!params.prompt_cache_ro`?};
-    Z -- Yes --> Z1["`llama_state_save_file()`"];
-    Z1 --> Z_End[End Post-processing];
-    Z -- No --> Z_End;
+    Y --> Z{"`params.prompt_cache_all` AND 
+`!path_session.empty()` AND 
+`!params.prompt_cache_ro`?"};
+    Z -- "Yes" --> Z1["`llama_state_save_file()`"];
+    Z1 --> Z_End["End Post-processing"];
+    Z -- "No" --> Z_End;
 
-    %% Styling
-    classDef condition fill:#f96,stroke:#333,stroke-width:2px;
+    subgraph legend [Flowchart Legend]
+        direction LR
+        legend_input["Input/Output"]
+        legend_process["Process Step"]
+        legend_decision{"Decision"}
+    end
+    classDef input fill:#f9f,stroke:#333,stroke-width:2px;
     classDef process fill:#9cf,stroke:#333,stroke-width:2px;
-    classDef io fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef important fill:#ff9,stroke:#333,stroke-width:2px;
-
-    class A,B,C,D,D1,E,F,G,G1,G2,G3,H,I,I1,J,K,L,X,Y,Z,Z1,Z_End process;
-    class B_LoopCond,F,G4,I2,J,Z condition;
+    classDef decision fill:#f96,stroke:#333,stroke-width:2px;
+    
+    class A,D,D1 input;
+    class B,C,E,G,G1,G2,G3,H,I,I1,K,L,X,Y,Z1,Z_End process;
+    class F,G4,I2,J,B_LoopCond,Z decision;
+    
+    class legend_input input;
+    class legend_process process;
+    class legend_decision decision;
 ```
 
 ## Detailed Explanation with Code Snippets
@@ -1098,36 +1192,73 @@ This saves the entire KV cache state associated with all processed tokens (`sess
 ## 5. Overall Inference Pipeline Diagram
 ```mermaid
 graph TD
-    A[Start] --> B{Input Processing};
-    B --> B1["Parse CLI Arguments & User Input <br/>(prompt, file, chat, sys_prompt, n_gpu_layers, etc.)"];
+    A["Start"] --> B{"Input Processing"};
+    B --> B1["Parse CLI Arguments & User Input 
+(prompt, file, chat, sys_prompt, n_gpu_layers, etc.)"];
 
-    B1 --> C{Data Preparation};
-    C --> C1["Tokenize Text <br/>(common_tokenize)"];
-    C1 --> C2["Apply Chat Templates <br/>(if applicable)"];
+    B1 --> C{"Data Preparation"};
+    C --> C1["Tokenize Text 
+(common_tokenize)"];
+    C1 --> C2["Apply Chat Templates 
+(if applicable)"];
 
-    C2 --> D{Backend & Model Initialization};
-    D --> D1["Initialize Backends <br/>(llama_backend_init(), specific GPU inits)"];
-    D1 --> D2["Load GGUF Model Metadata <br/>(llama_model_loader)<br/><i>Parses GGUF, reads tensor structures, handles splits</i>"];
-    D2 --> D3["Determine Tensor Placement Strategy <br/>(CPU/GPU)<br/><i>Based on n_gpu_layers, main_gpu, tensor_split</i>"];
-    D3 --> D4["Allocate Tensors & Populate Data <br/><i>Mmap to CPU / Direct Read to CPU / <br/>Direct Read to Host & <b>Async Copy to GPU</b></i>"];
+    C2 --> D{"Backend & Model Initialization"};
+    D --> D1["Initialize Backends 
+(llama_backend_init(), specific GPU inits)"];
+    D1 --> D2["Load GGUF Model Metadata 
+(llama_model_loader)
+<i>Parses GGUF, reads tensor structures, handles splits</i>"];
+    D2 --> D3["Determine Tensor Placement Strategy 
+(CPU/GPU)
+<i>Based on n_gpu_layers, main_gpu, tensor_split</i>"];
+    D3 --> D4["Allocate Tensors & Populate Data 
+<i>Mmap to CPU / Direct Read to CPU / 
+Direct Read to Host & <b>Async Copy to GPU</b></i>"];
 
-    D4 --> E{Inference Loop};
-    E --> E1["Loop while <br/>(tokens to generate AND <br/>NOT (antiprompt OR EOG))"];
+    D4 --> E{"Inference Loop"};
+    E --> E1["Loop while 
+(tokens to generate AND 
+NOT (antiprompt OR EOG))"];
     
-    E1 -- Generation continues --> E2["`llama_decode` (Process Input Tokens)<br/><i>Builds GGML graph. <br/>GGML executes ops on CPU/<b>GPU</b> where tensors reside</i>"];
+    E1 -- "Generation continues" --> E2["`llama_decode` (Process Input Tokens)
+<i>Builds GGML graph. 
+GGML executes ops on CPU/<b>GPU</b> where tensors reside</i>"];
     E2 --> E3["Update KV Cache"];
-    E3 --> E4["Sample Next Token <br/>(common_sampler_sample)<br/><i>Uses logits from llama_decode</i>"];
-    E4 --> E5["Update Sampler State <br/>(common_sampler_accept)"];
+    E3 --> E4["Sample Next Token 
+(common_sampler_sample)
+<i>Uses logits from llama_decode</i>"];
+    E4 --> E5["Update Sampler State 
+(common_sampler_accept)"];
     E5 --> E1;
 
-    E1 -- Generation stops --> F{Post-processing};
-    F --> F1["Detokenize Output Tokens <br/>(common_token_to_piece)"];
+    E1 -- "Generation stops" --> F{"Post-processing"};
+    F --> F1["Detokenize Output Tokens 
+(common_token_to_piece)"];
     F1 --> F2["Check for Antiprompts / EOG"];
-    F2 --> F3["Display Output to User / <br/>Handle Interactive Input"];
+    F2 --> F3["Display Output to User / 
+Handle Interactive Input"];
     
-    F3 --> G[End];
+    F3 --> G["End"];
 
-    %% Styling for GPU interaction emphasis
-    style D4 fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
-    style E2 fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
+    subgraph legend [Flowchart Legend]
+        direction LR
+        legend_input["Input/Output"]
+        legend_process["Process Step"]
+        legend_decision{"Decision"}
+        legend_gpu_interaction["GPU Interaction"]
+    end
+    classDef input fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef process fill:#9cf,stroke:#333,stroke-width:2px;
+    classDef decision fill:#f96,stroke:#333,stroke-width:2px;
+    classDef gpu_interaction fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px; %% Consistent GPU highlight
+    
+    class A,G input;
+    class B1,C1,C2,D1,D2,D3,E1,E3,E4,E5,F1,F2,F3 process;
+    class B,C,D,E,F decision;
+    class D4,E2 gpu_interaction;
+    
+    class legend_input input;
+    class legend_process process;
+    class legend_decision decision;
+    class legend_gpu_interaction gpu_interaction;
 ```

@@ -6,57 +6,95 @@ This report provides an in-depth look at the Model Loading phase within the llam
 
 ```mermaid
 graph TD
-    A[Start Model Loading: User common_params] --> B["common_model_params_to_llama<br/>(common/common.cpp)"];
-    B --> C["llama_model_params created <br/>(n_gpu_layers, main_gpu, tensor_split, use_mmap, etc.)"];
-    C --> D["llama_model_load_from_file_impl<br/>(src/llama.cpp)"];
+    A["Start Model Loading: User common_params"] --> B["common_model_params_to_llama
+(common/common.cpp)"];
+    B --> C["llama_model_params created 
+(n_gpu_layers, main_gpu, tensor_split, use_mmap, etc.)"];
+    C --> D["llama_model_load_from_file_impl
+(src/llama.cpp)"];
     D --> D1["Initialize llama_model object"];
-    D1 --> D2["Determine `model->devices` (List of ggml_backend_dev_t) <br/><i>User-provided or auto-detected GPUs. <br/>Filtered by main_gpu if split_mode is NONE</i>"];
+    D1 --> D2["Determine `model->devices` (List of ggml_backend_dev_t) 
+<i>User-provided or auto-detected GPUs. 
+Filtered by main_gpu if split_mode is NONE</i>"];
     
     D2 --> E["Call llama_model_load (src/llama.cpp)"];
-    E --> F["llama_model_loader Constructor<br/>(src/llama-model-loader.cpp)"];
-    F --> F1["Parse Main GGUF Metadata<br/>(gguf_init_from_file, no_alloc=true)"];
+    E --> F["llama_model_loader Constructor
+(src/llama-model-loader.cpp)"];
+    F --> F1["Parse Main GGUF Metadata
+(gguf_init_from_file, no_alloc=true)"];
     F1 --> F2["Populate `weights_map` with tensor metadata & offsets from main GGUF"];
-    F2 --> F3{Has Split Files? (n_split > 1)};
-    F3 -- Yes --> F4["Loop: Parse Split GGUF Metadata & <br/>Append to `weights_map`"];
+    F2 --> F3{"Has Split Files? (n_split > 1)"};
+    F3 -- Yes --> F4["Loop: Parse Split GGUF Metadata & 
+Append to `weights_map`"];
     F3 -- No --> F5;
     F4 --> F5["GGUF Metadata & weights_map Ready"];
 
-    F5 --> G["llama_model_loader::init_mappings<br/>(src/llama-model-loader.cpp)"];
-    G --> G1{use_mmap?};
-    G1 -- Yes --> G2["Create `llama_mmap` for each model file.<br/>Optionally `llama_mlock`."];
+    F5 --> G["llama_model_loader::init_mappings
+(src/llama-model-loader.cpp)"];
+    G --> G1{"use_mmap?"};
+    G1 -- Yes --> G2["Create `llama_mmap` for each model file.
+Optionally `llama_mlock`."];
     G1 -- No --> G3;
     G2 --> G3["Mappings Initialized (or skipped)"];
 
-    G3 --> H["llama_model::load_tensors (Conceptual)<br/>(Called by llama_model_load)"];
+    G3 --> H["llama_model::load_tensors (Conceptual)
+(Called by llama_model_load)"];
     H --> H1["Iterate through required model tensors (e.g., blk.0.attn_q.weight)"];
-    H1 --> H2{Offload Tensor to GPU? <br/>(Layer index < n_gpu_layers, tensor name criteria)};
-    H2 -- Yes --> H3["Allocate tensor buffer on target GPU(s)<br/>(ggml_backend_alloc_buffer / ggml_backend_alloc_split_buffer)<br/><i>Considers tensor_split, split_mode, model->devices</i>"];
+    H1 --> H2{"Offload Tensor to GPU? 
+(Layer index < n_gpu_layers, tensor name criteria)"};
+    H2 -- Yes --> H3["Allocate tensor buffer on target GPU(s)
+(ggml_backend_alloc_buffer / ggml_backend_alloc_split_buffer)
+<i>Considers tensor_split, split_mode, model->devices</i>"];
     H2 -- No --> H4["Allocate tensor buffer on CPU"];
     H3 --> H5;
-    H4 --> H5["Tensor `ggml_tensor` created in model.ctx_w <br/>(buffer set, data ptr might be null)"];
+    H4 --> H5["Tensor `ggml_tensor` created in model.ctx_w 
+(buffer set, data ptr might be null)"];
     
-    H5 --> I["llama_model_loader::load_all_data<br/>(src/llama-model-loader.cpp)<br/>(Called by llama_model::load_tensors_data)"];
+    H5 --> I["llama_model_loader::load_all_data
+(src/llama-model-loader.cpp)
+(Called by llama_model::load_tensors_data)"];
     I --> I1["Iterate tensors needing data population"];
-    I1 --> I2{use_mmap?};
-    I2 -- Yes (Mmap Path) --> I3["`cur->data = mapping->addr() + offset`"];
-    I3 --> I4["`ggml_backend_tensor_alloc` (if buffer for mmap) or <br/>`ggml_backend_tensor_set` (if data ptr already set, e.g. direct GPU)"];
-    I2 -- No (Non-Mmap Path) --> I5{Tensor on Host Buffer?};
-    I5 -- Yes --> I6["`file->read_raw(cur->data, ...)` <br/> (Direct read to CPU)"];
-    I5 -- No (Tensor on GPU Buffer) --> I7{Async Upload Possible? <br/>(upload_backend valid)};
-    I7 -- Yes --> I8["Read to Pinned Host Buffer <br/> `ggml_backend_tensor_set_async` <br/> (Async GPU Copy)"];
-    I7 -- No --> I9["Read to Temp Host Buffer <br/> `ggml_backend_tensor_set` <br/> (Sync GPU Copy)"];
-    I4 --> J[Tensor Data Populated];
+    I1 --> I2{"use_mmap?"};
+    I2 -- "Yes (Mmap Path)" --> I3["`cur->data = mapping->addr() + offset`"];
+    I3 --> I4["`ggml_backend_tensor_alloc` (if buffer for mmap) or 
+`ggml_backend_tensor_set` (if data ptr already set, e.g. direct GPU)"];
+    I2 -- "No (Non-Mmap Path)" --> I5{"Tensor on Host Buffer?"};
+    I5 -- Yes --> I6["`file->read_raw(cur->data, ...)` 
+(Direct read to CPU)"];
+    I5 -- "No (Tensor on GPU Buffer)" --> I7{"Async Upload Possible? 
+(upload_backend valid)"};
+    I7 -- Yes --> I8["Read to Pinned Host Buffer 
+`ggml_backend_tensor_set_async` 
+(Async GPU Copy)"];
+    I7 -- No --> I9["Read to Temp Host Buffer 
+`ggml_backend_tensor_set` 
+(Sync GPU Copy)"];
+    I4 --> J["Tensor Data Populated"];
     I6 --> J;
     I8 --> J;
     I9 --> J;
     J --> I1;
-    I1 -- All Tensors Processed --> K[End Model Loading];
+    I1 -- "All Tensors Processed" --> K["End Model Loading"];
 
-    %% Styling
-    style H3 fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
-    style I4 fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
-    style I8 fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
-    style I9 fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
+    subgraph legend [Flowchart Legend]
+        direction LR
+        legend_input["Input/Output"]
+        legend_process["Process Step"]
+        legend_decision{"Decision"}
+    end
+    classDef input fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef process fill:#9cf,stroke:#333,stroke-width:2px;
+    classDef decision fill:#f96,stroke:#333,stroke-width:2px;
+    classDef gpu_interaction fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
+
+    class A,C,K input;
+    class B,D,D1,D2,E,F,F1,F2,F4,F5,G,G2,G3,H,H1,H5,I,I1,I3,I6,J process;
+    class F3,G1,H2,I2,I5,I7 decision;
+    class H3,H4,I4,I8,I9 gpu_interaction; %% Highlighting GPU related allocation/copy
+    
+    class legend_input input;
+    class legend_process process;
+    class legend_decision decision;
 ```
 
 ## Detailed Explanation with Code Snippets
@@ -229,7 +267,7 @@ After metadata loading, `llama_model::load_tensors` (called by `llama_model_load
 *   **Logic (Conceptual):**
     *   It iterates through all expected tensors of the model architecture.
     *   For each tensor (e.g., "layers.0.attention.wq.weight", "output.weight"):
-        *   **GPU Offload Decision:** It checks if the tensor's layer index is less than `model.hparams.n_gpu_layers`. Specific tensors (like token embeddings or output layers) might also have explicit offload rules.
+        *   **GPU Offload Decision:** It checks if the tensor's layer index (extracted from its name like "layers.<b>0</b>.attention...") is less than `model.hparams.n_gpu_layers`. Specific tensors (like token embeddings "tok_embeddings.weight" or the final output layer "output.weight") might also have explicit offload rules, often being offloaded if `n_gpu_layers` is greater than zero or a certain threshold.
         *   **Buffer Allocation:**
             *   If offloaded to GPU: `ggml_backend_alloc_buffer` or `ggml_backend_alloc_split_buffer` is used to allocate memory on the target GPU(s) specified in `model.devices`. The `params.tensor_split` array guides how much of a tensor goes to each GPU in multi-GPU setups, and `params.split_mode` determines if layers or tensor rows are split.
             *   If on CPU: Memory is allocated in a CPU backend buffer.

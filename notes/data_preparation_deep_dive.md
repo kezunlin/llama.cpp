@@ -6,56 +6,64 @@ This report provides an in-depth look at the data preparation stage within the l
 
 ```mermaid
 graph TD
-    A[Start Data Preparation] --> B{Parse CLI Arguments & Files};
-    B -- common_params_parse --> C[Initial `common_params` set <br/> (prompt, system_prompt, chat_template, antiprompt, etc.)];
+    A["Start Data Preparation"] --> B{"Parse CLI Arguments & Files"};
+    B -- common_params_parse --> C["Initial `common_params` set 
+(prompt, system_prompt, chat_template, antiprompt, etc.)"];
     
-    C --> D{Mode Selection};
-    D -- Interactive Mode <br/> (`params.interactive_first` or no initial prompt) --> E[Interactive Input Loop];
-    D -- Pre-set Prompt Mode --> F[Process Pre-set Prompt];
+    C --> D{"Mode Selection"};
+    D -- "Interactive Mode 
+(`params.interactive_first` or no initial prompt)" --> E["Interactive Input Loop"];
+    D -- "Pre-set Prompt Mode" --> F["Process Pre-set Prompt"];
 
     F --> F1["Load `params.prompt` (from CLI -p or file -f)"];
-    F1 --> F2{Conversation & Chat Template? <br/> (`params.conversation_mode && params.enable_chat_template`)};
-    F2 -- Yes --> G[Chat Templating];
+    F1 --> F2{"Conversation & Chat Template? 
+(`params.conversation_mode && params.enable_chat_template`)"};
+    F2 -- Yes --> G["Chat Templating"];
     G --> G1["`common_chat_templates_init(model, params.chat_template)`"];
-    G1 --> G2["Format System Prompt (if `params.system_prompt`) <br/> using `chat_add_and_format` (calls `common_chat_format_single`)"];
-    G2 --> G3["Format Initial User Prompt (if `params.prompt`) <br/> using `chat_add_and_format`"];
+    G1 --> G2["Format System Prompt (if `params.system_prompt`) 
+using `chat_add_and_format` (calls `common_chat_format_single`)"];
+    G2 --> G3["Format Initial User Prompt (if `params.prompt`) 
+using `chat_add_and_format`"];
     G3 --> G4["`common_chat_templates_apply` -> `final_prompt_string`"];
     F2 -- No --> H["`final_prompt_string = params.prompt`"];
     
-    G4 --> I[Tokenize Initial Prompt];
+    G4 --> I["Tokenize Initial Prompt"];
     H --> I;
 
     E --> E1["`console::readline()` -> `buffer`"];
-    E1 --> E2{Conversation & Chat Template?};
+    E1 --> E2{"Conversation & Chat Template?"};
     E2 -- Yes --> E3["`chat_add_and_format('user', buffer)` -> `user_input_string`"];
     E2 -- No --> E4["`user_input_string = buffer`"];
-    E3 --> E5[Handle `params.input_prefix`, `params.input_suffix` <br/> (if chat template disabled for interactive)];
+    E3 --> E5["Handle `params.input_prefix`, `params.input_suffix` 
+(if chat template disabled for interactive)"];
     E4 --> E5;
-    E5 --> J[Tokenize Interactive Input];
+    E5 --> J["Tokenize Interactive Input"];
 
-    I --> K[Set `embd_inp` from Initial Prompt Tokens];
-    J --> K[Append Interactive Tokens to `embd_inp`];
-
+    I --> K["Set `embd_inp` from Initial Prompt Tokens"];
+    J --> K; 
     K --> L["`common_tokenize(ctx, text_to_tokenize, add_special, parse_special)`"];
-    L --> M{Special Token Handling};
+    L --> M{"Special Token Handling"};
     M --> M1["Determine `add_bos` based on vocab & `params.use_jinja`"];
     M1 --> M2["If `embd_inp` is empty & `add_bos`, add BOS token"];
-    M2 --> N[Output: `embd_inp` (tokenized input)];
-    N --> Z[End Data Preparation];
+    M2 --> N["Output: `embd_inp` (tokenized input)"];
+    N --> Z["End Data Preparation"];
 
     subgraph legend [Flowchart Legend]
         direction LR
-        legend_input[Input/Output]
-        legend_process[Process Step]
-        legend_decision{Decision}
-        legend_subroutine[/Sub-routine Call/]
+        legend_input["Input/Output"]
+        legend_process["Process Step"]
+        legend_decision{"Decision"}
+        legend_subroutine["/Sub-routine Call/"]
     end
     classDef input fill:#f9f,stroke:#333,stroke-width:2px;
     classDef process fill:#9cf,stroke:#333,stroke-width:2px;
     classDef decision fill:#f96,stroke:#333,stroke-width:2px;
     classDef subroutine fill:#9f9,stroke:#333,stroke-width:2px;
-    class A,B,C,D,E,E1,F,F1,G,G1,G2,G3,G4,H,I,J,K,L,M,M1,M2,N,Z process;
-    class F2,E2 decision;
+    
+    class A,C,E,E1,F,F1,G,G1,G2,G3,G4,H,I,E3,E4,E5,J,K,L,M1,M2,Z process;
+    class N input; %% N is an output, so class input
+    class B,D,F2,E2,M decision;
+    
     class legend_input input;
     class legend_process process;
     class legend_decision decision;

@@ -6,35 +6,66 @@ This report provides an in-depth look at the Inference Execution stage of the ll
 
 ```mermaid
 graph TD
-    A[Start Inference Loop] --> B{Loop while <br/>(n_remain > 0 AND !is_antiprompt) <br/>OR params.interactive};
-    B -- Yes, Continue Generation --> C[Prepare `embd` (current batch of tokens for evaluation)];
+    A["Start Inference Loop"] --> B{"Loop while 
+(n_remain > 0 AND !is_antiprompt) 
+OR params.interactive"};
+    B -- "Yes, Continue Generation" --> C["Prepare `embd` (current batch of tokens for evaluation)"];
     
-    C --> D{KV Cache Management <br/>(if n_past + embd.size >= n_ctx)};
-    D -- Context Shift Enabled <br/> (params.ctx_shift AND ga_n == 1) --> D1["Context Shifting:<br/>`llama_kv_self_seq_rm()`<br/>`llama_kv_self_seq_add()`"];
-    D -- Self-Extend Enabled <br/> (ga_n > 1) --> D2["Self-Extend (Grouped Attention):<br/>`llama_kv_self_seq_add()`<br/>`llama_kv_self_seq_div()`"];
-    D -- No Management Needed / After Management --> E;
+    C --> D{"KV Cache Management 
+(if n_past + embd.size >= n_ctx)"};
+    D -- "Context Shift Enabled 
+(params.ctx_shift AND ga_n == 1)" --> D1["Context Shifting:
+`llama_kv_self_seq_rm()`
+`llama_kv_self_seq_add()`"];
+    D -- "Self-Extend Enabled 
+(ga_n > 1)" --> D2["Self-Extend (Grouped Attention):
+`llama_kv_self_seq_add()`
+`llama_kv_self_seq_div()`"];
+    D -- "No Management Needed / After Management" --> E;
     D1 --> E;
     D2 --> E;
 
-    E["`llama_decode(ctx, batch)`<br/><i>Builds & computes GGML graph on CPU/<b>GPU</b>.<br/>Updates logits in context.</i>"];
+    E["`llama_decode(ctx, batch)`
+<i>Builds & computes GGML graph on CPU/<b>GPU</b>.
+Updates logits in context.</i>"];
     E --> F["`n_past += n_evaluated_tokens`"];
 
-    F --> G{Generating New Tokens? <br/> (embd_inp fully consumed AND !is_interacting)};
-    G -- Yes --> H["`common_sampler_sample(smpl, ctx, -1)` -> `next_token_id`"];
+    F --> G{"Generating New Tokens? 
+(embd_inp fully consumed AND !is_interacting)"};
+    G -- "Yes" --> H["`common_sampler_sample(smpl, ctx, -1)` -> `next_token_id`"];
     H --> I["`common_sampler_accept(smpl, next_token_id, accept_grammar=true)`"];
     I --> J["Add `next_token_id` to `embd` for next eval (if continuing)"];
     J --> K["`n_remain--`"];
     
-    G -- No (Processing Prompt/Input) --> L["For each token in `embd` (from `embd_inp`):<br/>`common_sampler_accept(smpl, token, accept_grammar=false)`"];
+    G -- "No (Processing Prompt/Input)" --> L["For each token in `embd` (from `embd_inp`):
+`common_sampler_accept(smpl, token, accept_grammar=false)`"];
     
     K --> B;
     L --> B;
 
-    B -- No, Stop Generation --> M[Proceed to Post-processing];
-    M --> Z[End Inference Stage];
+    B -- "No, Stop Generation" --> M["Proceed to Post-processing"];
+    M --> Z["End Inference Stage"];
 
-    %% Styling
-    style E fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
+    subgraph legend [Flowchart Legend]
+        direction LR
+        legend_input["Input/Output"]
+        legend_process["Process Step"]
+        legend_decision{"Decision"}
+        legend_gpu_interaction["GPU Interaction"]
+    end
+    classDef input fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef process fill:#9cf,stroke:#333,stroke-width:2px;
+    classDef decision fill:#f96,stroke:#333,stroke-width:2px;
+    classDef gpu_interaction fill:#D6EAF8,stroke:#2E86C1,stroke-width:2px;
+    
+    class A,C,D1,D2,F,H,I,J,K,L,M,Z process;
+    class B,D,G decision;
+    class E gpu_interaction; %% Node E is llama_decode, involving GPU
+    
+    class legend_input input;
+    class legend_process process;
+    class legend_decision decision;
+    class legend_gpu_interaction gpu_interaction;
 ```
 
 ## Detailed Explanation with Code Snippets
