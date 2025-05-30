@@ -9,36 +9,36 @@ graph TD
     A["Start Inference Loop"] --> B{"Loop while 
 (n_remain > 0 AND !is_antiprompt) 
 OR params.interactive"};
-    B -- "Yes, Continue Generation" --> C["Prepare `embd` (current batch of tokens for evaluation)"];
+    B -- "Yes, Continue Generation" --> C["Prepare 'embd' (current batch of tokens for evaluation)"];
     
     C --> D{"KV Cache Management 
 (if n_past + embd.size >= n_ctx)"};
     D -- "Context Shift Enabled 
 (params.ctx_shift AND ga_n == 1)" --> D1["Context Shifting:
-`llama_kv_self_seq_rm()`
-`llama_kv_self_seq_add()`"];
+'llama_kv_self_seq_rm()'
+'llama_kv_self_seq_add()'"];
     D -- "Self-Extend Enabled 
 (ga_n > 1)" --> D2["Self-Extend (Grouped Attention):
-`llama_kv_self_seq_add()`
-`llama_kv_self_seq_div()`"];
+'llama_kv_self_seq_add()'
+'llama_kv_self_seq_div()'"];
     D -- "No Management Needed / After Management" --> E;
     D1 --> E;
     D2 --> E;
 
-    E["`llama_decode(ctx, batch)`
-<i>Builds & computes GGML graph on CPU/<b>GPU</b>.
-Updates logits in context.</i>"];
-    E --> F["`n_past += n_evaluated_tokens`"];
+    E["'llama_decode(ctx, batch)'
+Builds & computes GGML graph on CPU/GPU.
+Updates logits in context."];
+    E --> F["'n_past += n_evaluated_tokens'"];
 
     F --> G{"Generating New Tokens? 
 (embd_inp fully consumed AND !is_interacting)"};
-    G -- "Yes" --> H["`common_sampler_sample(smpl, ctx, -1)` -> `next_token_id`"];
-    H --> I["`common_sampler_accept(smpl, next_token_id, accept_grammar=true)`"];
-    I --> J["Add `next_token_id` to `embd` for next eval (if continuing)"];
-    J --> K["`n_remain--`"];
+    G -- "Yes" --> H["'common_sampler_sample(smpl, ctx, -1)' -> 'next_token_id'"];
+    H --> I["'common_sampler_accept(smpl, next_token_id, accept_grammar=true)'"];
+    I --> J["Add 'next_token_id' to 'embd' for next eval (if continuing)"];
+    J --> K["'n_remain--'"];
     
-    G -- "No (Processing Prompt/Input)" --> L["For each token in `embd` (from `embd_inp`):
-`common_sampler_accept(smpl, token, accept_grammar=false)`"];
+    G -- "No (Processing Prompt/Input)" --> L["For each token in 'embd' (from 'embd_inp'):
+'common_sampler_accept(smpl, token, accept_grammar=false)'"];
     
     K --> B;
     L --> B;

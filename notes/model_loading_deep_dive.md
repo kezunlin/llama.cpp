@@ -13,41 +13,41 @@ graph TD
     C --> D["llama_model_load_from_file_impl
 (src/llama.cpp)"];
     D --> D1["Initialize llama_model object"];
-    D1 --> D2["Determine `model->devices` (List of ggml_backend_dev_t) 
-<i>User-provided or auto-detected GPUs. 
-Filtered by main_gpu if split_mode is NONE</i>"];
+    D1 --> D2["Determine 'model->devices' (List of ggml_backend_dev_t) 
+User-provided or auto-detected GPUs. 
+Filtered by main_gpu if split_mode is NONE"];
     
     D2 --> E["Call llama_model_load (src/llama.cpp)"];
     E --> F["llama_model_loader Constructor
 (src/llama-model-loader.cpp)"];
     F --> F1["Parse Main GGUF Metadata
 (gguf_init_from_file, no_alloc=true)"];
-    F1 --> F2["Populate `weights_map` with tensor metadata & offsets from main GGUF"];
+    F1 --> F2["Populate 'weights_map' with tensor metadata & offsets from main GGUF"];
     F2 --> F3{"Has Split Files? (n_split > 1)"};
     F3 -- Yes --> F4["Loop: Parse Split GGUF Metadata & 
-Append to `weights_map`"];
+Append to 'weights_map'"];
     F3 -- No --> F5;
-    F4 --> F5["GGUF Metadata & weights_map Ready"];
+    F4 --> F5["GGUF Metadata & 'weights_map' Ready"];
 
     F5 --> G["llama_model_loader::init_mappings
 (src/llama-model-loader.cpp)"];
     G --> G1{"use_mmap?"};
-    G1 -- Yes --> G2["Create `llama_mmap` for each model file.
-Optionally `llama_mlock`."];
+    G1 -- Yes --> G2["Create 'llama_mmap' for each model file.
+Optionally 'llama_mlock'."];
     G1 -- No --> G3;
     G2 --> G3["Mappings Initialized (or skipped)"];
 
     G3 --> H["llama_model::load_tensors (Conceptual)
 (Called by llama_model_load)"];
-    H --> H1["Iterate through required model tensors (e.g., blk.0.attn_q.weight)"];
+    H --> H1["Iterate through required model tensors (e.g., 'blk.0.attn_q.weight')"];
     H1 --> H2{"Offload Tensor to GPU? 
 (Layer index < n_gpu_layers, tensor name criteria)"};
     H2 -- Yes --> H3["Allocate tensor buffer on target GPU(s)
-(ggml_backend_alloc_buffer / ggml_backend_alloc_split_buffer)
-<i>Considers tensor_split, split_mode, model->devices</i>"];
+('ggml_backend_alloc_buffer' / 'ggml_backend_alloc_split_buffer')
+Considers tensor_split, split_mode, 'model->devices'"];
     H2 -- No --> H4["Allocate tensor buffer on CPU"];
     H3 --> H5;
-    H4 --> H5["Tensor `ggml_tensor` created in model.ctx_w 
+    H4 --> H5["Tensor 'ggml_tensor' created in model.ctx_w 
 (buffer set, data ptr might be null)"];
     
     H5 --> I["llama_model_loader::load_all_data
@@ -55,19 +55,19 @@ Optionally `llama_mlock`."];
 (Called by llama_model::load_tensors_data)"];
     I --> I1["Iterate tensors needing data population"];
     I1 --> I2{"use_mmap?"};
-    I2 -- "Yes (Mmap Path)" --> I3["`cur->data = mapping->addr() + offset`"];
-    I3 --> I4["`ggml_backend_tensor_alloc` (if buffer for mmap) or 
-`ggml_backend_tensor_set` (if data ptr already set, e.g. direct GPU)"];
+    I2 -- "Yes (Mmap Path)" --> I3["'cur->data = mapping->addr() + offset'"];
+    I3 --> I4["'ggml_backend_tensor_alloc' (if buffer for mmap) or 
+'ggml_backend_tensor_set' (if data ptr already set, e.g. direct GPU)"];
     I2 -- "No (Non-Mmap Path)" --> I5{"Tensor on Host Buffer?"};
-    I5 -- Yes --> I6["`file->read_raw(cur->data, ...)` 
+    I5 -- Yes --> I6["'file->read_raw(cur->data, ...)' 
 (Direct read to CPU)"];
     I5 -- "No (Tensor on GPU Buffer)" --> I7{"Async Upload Possible? 
 (upload_backend valid)"};
     I7 -- Yes --> I8["Read to Pinned Host Buffer 
-`ggml_backend_tensor_set_async` 
+'ggml_backend_tensor_set_async' 
 (Async GPU Copy)"];
     I7 -- No --> I9["Read to Temp Host Buffer 
-`ggml_backend_tensor_set` 
+'ggml_backend_tensor_set' 
 (Sync GPU Copy)"];
     I4 --> J["Tensor Data Populated"];
     I6 --> J;
@@ -81,6 +81,7 @@ Optionally `llama_mlock`."];
         legend_input["Input/Output"]
         legend_process["Process Step"]
         legend_decision{"Decision"}
+        legend_gpu_interaction["GPU Interaction"]
     end
     classDef input fill:#f9f,stroke:#333,stroke-width:2px;
     classDef process fill:#9cf,stroke:#333,stroke-width:2px;
@@ -90,11 +91,12 @@ Optionally `llama_mlock`."];
     class A,C,K input;
     class B,D,D1,D2,E,F,F1,F2,F4,F5,G,G2,G3,H,H1,H5,I,I1,I3,I6,J process;
     class F3,G1,H2,I2,I5,I7 decision;
-    class H3,H4,I4,I8,I9 gpu_interaction; %% Highlighting GPU related allocation/copy
+    class H3,H4,I4,I8,I9 gpu_interaction;
     
     class legend_input input;
     class legend_process process;
     class legend_decision decision;
+    class legend_gpu_interaction gpu_interaction;
 ```
 
 ## Detailed Explanation with Code Snippets

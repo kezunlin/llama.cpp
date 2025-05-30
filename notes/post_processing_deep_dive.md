@@ -6,38 +6,38 @@ This report delves into the Post-processing stage of the llama.cpp pipeline. It 
 
 ```mermaid
 graph TD
-    A["New Token(s) available in `embd` 
+    A["New Token(s) available in 'embd' 
 (from sampling or input echo)"] --> B;
     
-    B["Loop for each `id` in `embd`"] --> C["`token_str = common_token_to_piece(ctx, id, params.special)`"];
-    C --> D["Accumulate `token_str` to `output_ss` (full log)"];
+    B["Loop for each 'id' in 'embd'"] --> C["'token_str = common_token_to_piece(ctx, id, params.special)'"];
+    C --> D["Accumulate 'token_str' to 'output_ss' (full log)"];
     D --> D1["IF generating new token (not echo):
-Accumulate `token_str` to `assistant_ss` (chat mode)"];
-    D1 --> E["Display/Log `token_str` via `LOG(\"%s\", ...)`"];
+Accumulate 'token_str' to 'assistant_ss' (chat mode)"];
+    D1 --> E["Display/Log 'token_str' (using LOG)"];
     E -- "Next token in embd" --> B;
     B -- "All tokens in embd processed" --> F;
 
-    F{"Was `embd` from new token generation 
+    F{"Was 'embd' from new token generation 
 (not prompt echo)?"};
     F -- "Yes" --> G["Antiprompt Check"];
-    G --> G1["`last_output = common_sampler_prev_str()`"];
-    G1 --> G2["Compare `last_output` with each `params.antiprompt` string"];
-    G2 --> G3["Compare `common_sampler_last()` with single-token antiprompts"];
+    G --> G1["'last_output = common_sampler_prev_str()'"];
+    G1 --> G2["Compare 'last_output' with each 'params.antiprompt' string"];
+    G2 --> G3["Compare 'common_sampler_last()' with single-token antiprompts"];
     G3 --> G4{"Antiprompt Matched?"};
-    G4 -- "Yes" --> H["`is_antiprompt = true`
-IF interactive: `is_interacting = true`"];
+    G4 -- "Yes" --> H["'is_antiprompt = true'
+IF interactive: 'is_interacting = true'"];
     H --> X["To Main Loop Condition Check"];
     G4 -- "No" --> I["EOG/EOS Check"];
     
     F -- "No (Echoing prompt/input)" --> X;
 
-    I --> I1["`is_eog = llama_vocab_is_eog(vocab, common_sampler_last(smpl))`"];
-    I1 --> I2{"`is_eog` true?"};
-    I2 -- "Yes" --> J{"Interactive Mode? (`params.interactive`)"};
-    J -- "Yes" --> K["Set `is_interacting = true`
-IF chat: `chat_add_and_format(\"assistant\", assistant_ss.str())`"];
+    I --> I1["'is_eog = llama_vocab_is_eog(vocab, common_sampler_last(smpl))'"];
+    I1 --> I2{"'is_eog' true?"};
+    I2 -- "Yes" --> J{"Interactive Mode? ('params.interactive')"};
+    J -- "Yes" --> K["Set 'is_interacting = true'
+IF chat: 'chat_add_and_format(\"assistant\", assistant_ss.str())'"];
     K --> X;
-    J -- "No" --> L["`LOG(\" [end of text]\")` 
+    J -- "No" --> L["'LOG(\" [end of text]\")' 
 Break Main Loop"];
     L --> Y["End Generation Sequence"];
     I2 -- "No" --> X;
@@ -47,10 +47,10 @@ Interactive mode waiting?"};
     B_LoopCond -- "Yes, Continue" --> A_InferenceLoop["Back to Start of Inference Loop"];
     B_LoopCond -- "No, Stop" --> Y;
     
-    Y --> Z{"`params.prompt_cache_all` AND 
-`!path_session.empty()` AND 
-`!params.prompt_cache_ro`?"};
-    Z -- "Yes" --> Z1["`llama_state_save_file()`"];
+    Y --> Z{"'params.prompt_cache_all' AND 
+'!path_session.empty()' AND 
+'!params.prompt_cache_ro'?"};
+    Z -- "Yes" --> Z1["'llama_state_save_file()'"];
     Z1 --> Z_End["End Post-processing"];
     Z -- "No" --> Z_End;
 
@@ -59,18 +59,22 @@ Interactive mode waiting?"};
         legend_input["Input/Output"]
         legend_process["Process Step"]
         legend_decision{"Decision"}
+        legend_subroutine["/Sub-routine Call/"]
     end
     classDef input fill:#f9f,stroke:#333,stroke-width:2px;
     classDef process fill:#9cf,stroke:#333,stroke-width:2px;
     classDef decision fill:#f96,stroke:#333,stroke-width:2px;
+    classDef subroutine fill:#9f9,stroke:#333,stroke-width:2px;
     
     class A,D,D1 input;
     class B,C,E,G,G1,G2,G3,H,I,I1,K,L,X,Y,Z1,Z_End process;
     class F,G4,I2,J,B_LoopCond,Z decision;
+    class A_InferenceLoop subroutine;
     
     class legend_input input;
     class legend_process process;
     class legend_decision decision;
+    class legend_subroutine subroutine;
 ```
 
 ## Detailed Explanation with Code Snippets
